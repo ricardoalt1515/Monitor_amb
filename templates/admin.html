@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Administración - Sistema de Monitoreo Ambiental</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8">Panel de Administración</h1>
+        <div class="bg-white shadow rounded-lg p-6">
+            <h2 class="text-2xl font-semibold mb-4">Configuración de Umbrales</h2>
+            <form id="thresholdForm">
+                {% for sensor, values in thresholds.items() %}
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium mb-2">{{ sensor|capitalize }}</h3>
+                    <div class="flex space-x-4">
+                        <div>
+                            <label for="{{ sensor }}_min" class="block text-sm font-medium text-gray-700">Mínimo</label>
+                            <input type="number" id="{{ sensor }}_min" name="{{ sensor }}_min" value="{{ values.min }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        </div>
+                        <div>
+                            <label for="{{ sensor }}_max" class="block text-sm font-medium text-gray-700">Máximo</label>
+                            <input type="number" id="{{ sensor }}_max" name="{{ sensor }}_max" value="{{ values.max }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                <button type="submit" class="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">
+                    Guardar Cambios
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('thresholdForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const thresholds = {};
+
+            for (let [key, value] of formData.entries()) {
+                const [sensor, limit] = key.split('_');
+                if (!thresholds[sensor]) {
+                    thresholds[sensor] = {};
+                }
+                thresholds[sensor][limit] = parseFloat(value);
+            }
+
+            fetch('/api/update_thresholds', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(thresholds),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('Umbrales actualizados correctamente');
+                } else {
+                    alert('Error al actualizar los umbrales');
+                }
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+                alert('Error al actualizar los umbrales');
+            });
+        });
+    </script>
+</body>
+</html>

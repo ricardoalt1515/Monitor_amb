@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Avanzado de Monitoreo Ambiental</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+</head>
+
+<!-- Ejemplo de Navbar -->
+<nav class="bg-white shadow">
+    <div class="container mx-auto px-4 py-4 flex justify-between">
+        <a href="/" class="text-xl font-bold">Monitoreo Ambiental</a>
+        <div>
+            <a href="/" class="mx-2 text-gray-700 hover:text-blue-500">Inicio</a>
+            <a href="/admin" class="mx-2 text-gray-700 hover:text-blue-500">Administración</a>
+            <a href="/logout" class="mx-2 text-gray-700 hover:text-blue-500">Cerrar Sesión</a>
+        </div>
+    </div>
+</nav>
+
+
+
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold mb-8 text-center">Sistema Avanzado de Monitoreo Ambiental</h1>
+        
+        <div class="mb-4">
+            <label for="roomSelect" class="block text-sm font-medium text-gray-700">Seleccionar Habitación:</label>
+            <select id="roomSelect" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                <option value="Sala">Sala</option>
+                <option value="Dormitorio">Dormitorio</option>
+                <option value="Cocina">Cocina</option>
+                <option value="Oficina">Oficina</option>
+            </select>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500 truncate">Temperatura</dt>
+                    <dd class="mt-1 text-3xl font-semibold text-gray-900" id="temperature">--°C</dd>
+                </div>
+            </div>
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500 truncate">Humedad</dt>
+                    <dd class="mt-1 text-3xl font-semibold text-gray-900" id="humidity">--%</dd>
+                </div>
+            </div>
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500 truncate">CO2</dt>
+                    <dd class="mt-1 text-3xl font-semibold text-gray-900" id="co2">-- ppm</dd>
+                </div>
+            </div>
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="px-4 py-5 sm:p-6">
+                    <dt class="text-sm font-medium text-gray-500 truncate">Luz</dt>
+                    <dd class="mt-1 text-3xl font-semibold text-gray-900" id="light">-- lux</dd>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white shadow rounded-lg p-4 mb-8">
+            <h2 class="text-xl font-semibold mb-4">Gráfico de Temperatura</h2>
+            <canvas id="tempChart"></canvas>
+        </div>
+
+        <div class="bg-white shadow rounded-lg p-4">
+            <h2 class="text-xl font-semibold mb-4">Alertas</h2>
+            <ul id="alertsList" class="list-disc list-inside"></ul>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const ctx = document.getElementById('tempChart').getContext('2d');
+        const roomSelect = document.getElementById('roomSelect');
+        let currentRoom = 'Sala';
+
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Temperatura',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: false
+                    }
+                }
+            }
+        });
+
+                // Toggle de modo oscuro
+        const toggleDarkMode = () => {
+            document.documentElement.classList.toggle('dark');
+        }
+
+
+        function updateDisplay(data) {
+            if (data.room === currentRoom) {
+                document.getElementById('temperature').textContent = `${data.temperature}°C`;
+                document.getElementById('humidity').textContent = `${data.humidity}%`;
+                document.getElementById('co2').textContent = `${data.co2} ppm`;
+                document.getElementById('light').textContent = `${data.light} lux`;
+
+                const now = new Date();
+                chart.data.labels.push(now.toLocaleTimeString());
+                chart.data.datasets[0].data.push(data.temperature);
+
+                if (chart.data.labels.length > 20) {
+                    chart.data.labels.shift();
+                    chart.data.datasets[0].data.shift();
+                }
+
+                chart.update();
+
+                const alertsList = document.getElementById('alertsList');
+                alertsList.innerHTML = '';
+                data.alerts.forEach(alert => {
+                    const li = document.createElement('li');
+                    li.textContent = alert;
+                    li.className = 'text-red-600';
+                    alertsList.appendChild(li);
+                });
+            }
+        }
+
+        socket.on('update_data', updateDisplay);
+
+        roomSelect.addEventListener('change', (event) => {
+            currentRoom = event.target.value;
+            chart.data.labels = [];
+            chart.data.datasets[0].data = [];
+            chart.update();
+        });
+
+        // Cargar datos históricos al inicio
+        fetch(`/api/historical_data?room=${currentRoom}&days=7`)
+            .then(response => response.json())
+            .then(data => {
+                chart.data.labels = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+                chart.data.datasets[0].data = data.map(d => d.temperature);
+                chart.update();
+            });
+
+        // Actualizar lista de habitaciones
+        fetch('/api/rooms')
+            .then(response => response.json())
+            .then(rooms => {
+                roomSelect.innerHTML = '';
+                rooms.forEach(room => {
+                    const option = document.createElement('option');
+                    option.value = room;
+                    option.textContent = room;
+                    roomSelect.appendChild(option);
+                });
+            });
+    </script>
+</body>
+</html>
